@@ -119,7 +119,7 @@ paginate (Pagination size index') totalItems f =
     (whole, rems) = totalItems `quotRem` size
     totalPages    = max 1 (whole + if rems == 0 then 0 else 1)
     index         = min index' totalPages
-    offset        = (index - 1) * size
+    offset        = (subNatural index 1) * size
 
 -- | Get subset of items for current page.
 
@@ -169,9 +169,9 @@ pageRange Paginated {..} 0 = NE.fromList [pageIndex pgPagination]
 pageRange Paginated {..} n =
   let len   = min pgPagesTotal (n * 2 + 1)
       index = pageIndex pgPagination
-      shift | index <= n                = 0
-            | index >= pgPagesTotal - n = pgPagesTotal - len
-            | otherwise                 = index - n - 1
+      shift | index <= n                           = 0
+            | index >= (subNatural pgPagesTotal n) = subNatural pgPagesTotal len
+            | otherwise                            = subNatural index (n + 1)
   in (+ shift) <$> NE.fromList [1..len]
 
 -- | Backward ellipsis appears when page range (pages around current page to
@@ -190,7 +190,7 @@ forwardEllip
   :: Paginated a       -- ^ Paginated data
   -> Natural           -- ^ Number of pages to show before and after
   -> Bool              -- ^ Do we have forward ellipsis?
-forwardEllip p@Paginated {..} n = NE.last (pageRange p n) < pred pgPagesTotal
+forwardEllip p@Paginated {..} n = NE.last (pageRange p n) < (subNatural pgPagesTotal 1)
 
 ----------------------------------------------------------------------------
 -- Exceptions
@@ -204,3 +204,16 @@ data PaginationException
 
 instance NFData PaginationException
 instance Exception PaginationException
+
+---------------------------------------------------------------------------
+-- GHCJS support
+
+-- | Substract a natural by another natural
+--
+-- Workaround ArithException with a mere `n - 1` or `pred n` on GHCJS. You must
+-- use this function for all negative operations.
+subNatural
+  :: Natural
+  -> Natural
+  -> Natural
+subNatural n x = fromIntegral $ (toInteger n) - (toInteger x)
